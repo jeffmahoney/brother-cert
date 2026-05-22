@@ -14,23 +14,24 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          repository: gregtwallace/brother-cert
+          repository: ${{ github.repository }}
           ref: ${{ env.GITHUB_REF }}
-          fetch-depth: 0
+          fetch-depth: 1
+          fetch-tags: true
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
 
       - name: Build All
         run: |
-          python ./build_release.py
+          python ./build_release.py --gitrequired
 
       - name: Save Zip of all targets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: brother-cert-release
           path: ./_out/_release

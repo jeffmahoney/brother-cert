@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
+import argparse
 import os.path
+from pathlib import Path
+import re
 import shutil
 import subprocess
 import tarfile
+
+# Usage
+# python3 ./build_release.py [--gitrequired]
+
+# if the gitrequired flag is used, the script will crash if it fails to get the current
+# git commit
+
 
 # Configuration
 # output path (relative to this script)
@@ -24,23 +34,80 @@ targets = [
 
 ###
 
-# Script
+# Function to get current commit hash without needing git executable or lib
+# Modified version of: https://stackoverflow.com/a/68215738/7572076
+def get_commit():
+  git_folder = Path('./.git')
+  head_content = Path(git_folder, 'HEAD').read_text().split('\n')[0]
+  commitRegex = re.compile(r"^[a-fA-F0-9]{40}$")
+
+  # HEAD references another file in ref
+  if head_content.startswith("ref: "):
+    head_name = head_content.split(' ')[-1]
+    head_ref = Path(git_folder,head_name)
+    ref_file_content = head_ref.read_text().replace('\n','')
+
+    if re.match(commitRegex, ref_file_content):
+      return ref_file_content
+
+  # HEAD has a commit in it (such as for a tag)
+  if re.match(commitRegex, head_content):
+    return head_content
+
+  return ""
+
+# Main Script
+print("initializing brother-cert build script")
+
 # relative dir is root
 scriptDir = dirname = os.path.dirname(__file__)
 outBaseDir = os.path.join(scriptDir, outRelativeDir)
 releaseDir = os.path.join(outBaseDir, "_release")
 
+# use parser to check for git required flag
+parser = argparse.ArgumentParser()
+parser.add_argument('--gitrequired', action='store_true')
+args = parser.parse_args()
+
+# get version number
+versionString = ""
+versionPattern = re.compile(r"appVersion = \"([0-9]+\.[0-9]+\.[0-9]+)\"")
+
+with open('./pkg/app/app.go') as appGoFile:
+  for line in appGoFile:
+    match = re.search(versionPattern, line)
+    if match != None:
+      versionString = match.group(1)
+      break
+
+if versionString == "":
+  print("aborting: failed to parse version number")
+  exit(-1)
+
+# try to get hash
+gitHead = get_commit()
+if gitHead != "":
+  versionString += "_(" + gitHead[:7] + ")"
+else:
+  print("failed to get git hash")
+  if args.gitrequired:
+    print("aborting: git hash is required by --gitrequired")
+    exit(-1)
+
+#
+print("building brother-cert version", versionString)
+
 # recreate paths
 if os.path.exists(outBaseDir):
+  print("build output directory already exists, removing it")
   shutil.rmtree(outBaseDir)
 os.makedirs(outBaseDir)
 os.makedirs(releaseDir)
 
-# get version number / tag
-gitTag = subprocess.check_output(["git", "describe", "--tags", "--abbrev=0"]).decode('utf-8').strip()
-
 # loop through and build all targets
 for target in targets:
+  print("building brother-cert for target:", target, "...")
+
   # environment vars
   split = target.split("_")
   GOOS = split[0]
@@ -59,18 +126,21 @@ for target in targets:
   if GOOS.lower() == "windows":
     extension = ".exe"
 
-  # build binary and install only binary
+  # build binary
   subprocess.run(["go", "build", "-o", f"{targetOutDir}/brother-cert{extension}", "./cmd/brother-cert"])
 
   # copy other important files for release
   shutil.copy("README.md", targetOutDir)
   shutil.copy("CHANGELOG.md", targetOutDir)
   shutil.copy("LICENSE.md", targetOutDir)
+  if gitHead:
+    with open(targetOutDir + "/HEAD", "a") as f:
+      f.write(gitHead)
 
   # compress release file
   # special case for windows & mac to use zip format
   if GOOS.lower() == "windows" or GOOS.lower() == "darwin":
-    shutil.make_archive(f"{releaseDir}/brother-cert-{gitTag}_{target}", "zip", targetOutDir)
+    shutil.make_archive(f"{releaseDir}/brother-cert-{versionString}_{target}", "zip", targetOutDir)
   else:
     # for others, use gztar and set permissions on the files
 
@@ -83,6 +153,8 @@ for target in targets:
       return tarinfo
 
     # make tar
-    with tarfile.open(f"{releaseDir}/brother-cert-{gitTag}_{target}.tar.gz", "w:gz") as tar:
+    with tarfile.open(f"{releaseDir}/brother-cert-{versionString}_{target}.tar.gz", "w:gz") as tar:
         for file in os.listdir(targetOutDir):
           tar.add(os.path.join(targetOutDir, file), arcname=file, recursive=False, filter=set_permissions)
+
+print("exiting brother-cert build script")
