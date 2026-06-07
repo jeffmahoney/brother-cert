@@ -37,6 +37,13 @@ func (app *app) cmdInstallCertAndReset(_ context.Context, args []string) error {
 		useHttp = true
 	}
 
+	// insecure https?
+	insecureHTTPS := false
+	if app.config.insecure != nil && *app.config.insecure {
+		app.stdLogger.Println("WARNING: --insecure flag set, printer https connection certificate will not be verified")
+		insecureHTTPS = true
+	}
+
 	// load key and cert
 	keyPem, certPem, err := app.config.keyCertPemCfg.GetPemBytes("main")
 	if err != nil {
@@ -45,10 +52,11 @@ func (app *app) cmdInstallCertAndReset(_ context.Context, args []string) error {
 
 	// make printer (which includes login)
 	printerCfg := printer.Config{
-		Hostname:  *app.config.hostname,
-		Password:  *app.config.password,
-		UseHttp:   useHttp,
-		UserAgent: fmt.Sprintf("brother-cert/%s (%s; %s)", appVersion, runtime.GOOS, runtime.GOARCH),
+		Hostname:      *app.config.hostname,
+		Password:      *app.config.password,
+		UseHttp:       useHttp,
+		UserAgent:     fmt.Sprintf("brother-cert/%s (%s; %s)", appVersion, runtime.GOOS, runtime.GOARCH),
+		InsecureHTTPS: insecureHTTPS,
 	}
 
 	print, err := printer.NewPrinter(printerCfg)

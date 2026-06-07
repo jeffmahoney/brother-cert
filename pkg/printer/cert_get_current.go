@@ -209,7 +209,7 @@ func (p *printer) getCurrentCertIDFromHttpSettings() (id string, name string, er
 func (p *printer) GetCurrentLeafCert() (*x509.Certificate, error) {
 	// use tls handshake to get the serial of the active certificate
 	conf := &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: true, // security doesn't matter here - we're not actually using this connection
 	}
 
 	conn, err := tls.Dial("tcp", strings.TrimPrefix(p.baseUrl, "https://")+":443", conf)
