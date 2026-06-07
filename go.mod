@@ -7,7 +7,7 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.7.1
 )
 
-require golang.org/x/crypto v0.51.0 // indirect
+require golang.org/x/crypto v0.52.0 // indirect
 
 replace github.com/gregtwallace/brother-cert/cmd/brother-cert => /pkg/cmd/brother-cert
 
