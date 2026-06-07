@@ -1,5 +1,13 @@
 # Brother Cert Changelog
 
+## [v0.3.2] - 2026-05-21
+
+Add `--insecure` flag to disable https certificate checks. This should
+not generally be used, particularly in automation.
+
+Also some dependency updates.
+
+
 ## [v0.3.1] - 2026-05-21
 
 Dependency and build process updates.
